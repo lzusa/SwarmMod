@@ -8,7 +8,13 @@ ctest --test-dir "$PSScriptRoot/build" -C Release --output-on-failure
 if ($LASTEXITCODE) { throw 'Tests failed' }
 $output = "$PSScriptRoot/dist/modules/SwarmMod"
 New-Item -ItemType Directory -Force $output | Out-Null
+foreach ($oldFile in @('SwarmModPush.exe', 'SwarmModPush.pdb')) {
+    $oldPath = Join-Path $output $oldFile
+    if (Test-Path -LiteralPath $oldPath) { Remove-Item -LiteralPath $oldPath }
+}
 Copy-Item "$PSScriptRoot/build/Release/SwarmMod.dll" "$output/SwarmMod.dll"
 Copy-Item "$SokuLibRoot/LICENSE" "$output/SokuLib-LICENSE.txt"
 Copy-Item "$PSScriptRoot/mod.json" "$output/mod.json"
+Copy-Item "$PSScriptRoot/build/dependency-licenses/*" $output
+if (!(Test-Path "$output/SwarmMod.ini")) { Copy-Item "$PSScriptRoot/SwarmMod.ini" "$output/SwarmMod.ini" }
 Write-Host "Built $output/SwarmMod.dll"

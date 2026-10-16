@@ -1,28 +1,43 @@
-# SwarmMod
+# SwarmMod 0.1.0
 
-东方非想天则（Touhou Hisoutensoku）的游戏状态检测 Mod，供支持自动推送功能的 Swarm UI 识别实际对战。
+东方非想天则的 Swarm 中转对局自动推送 Mod。游戏状态检测和 HTTP PUT 均在 DLL 内完成，无需辅助 EXE。本仓库只包含 Mod，需配合支持配置同步的 Swarm UI 使用。
 
-Mod 在本地报告游戏角色、场景、连接编号和心跳；HTTP 推送由 Swarm UI 完成。单独安装此 Mod 不会向 Konni 或其他网站发送请求。
+## 使用
 
-## 安装
+1. 退出游戏，将发布包的 modules/SwarmMod 放入游戏目录，替换 DLL 和 mod.json。已有 SwarmMod.ini 请保留。
+2. 启用 modules/SwarmMod/SwarmMod.dll。SokuModLoader 在 ModLoaderSettings.json 中启用此路径，优先级 -60000；普通 SWRSToys 在 [Module] 中加入 SwarmMod=modules/SwarmMod/SwarmMod.dll。
+3. 将 swarm-ui.exe 放在游戏目录运行，或先启动游戏，让 Swarm 自动定位并记住目录。
+4. 独立开启“IP用于大厅”“IP推送网页”，然后创建中转。两个开关默认关闭，记住各自偏好。已有中转时开启也会立即同步。
 
-1. 退出游戏，将发布包内的 `modules/SwarmMod` 复制到游戏的 `modules` 目录。
-2. 使用普通 SWRSToys 时，在 `SWRSToys.ini` 的 `[Module]` 中加入：
+大厅开关写入 modules/SokuLobbiesMod/SokuLobbies.ini 的 [Lobby] HostIP。网页开关写入 modules/SwarmMod/SwarmMod.ini，由 Mod 在主机实际对战时后台推送。客户端、观战、单机和录像不触发；同一连接连续再战不重复注册；重新连接、更换中转或接口可重新注册。失败最多尝试三次，间隔 15 秒、60 秒。
 
-   ```ini
-   SwarmMod=modules/SwarmMod/SwarmMod.dll
-   ```
+## 配置与清理
 
-3. 使用 SokuModLoader 时，保留同目录的 `mod.json`，在模块管理中启用 SwarmMod；模块路径为 `modules/SwarmMod/SwarmMod.dll`，优先级为 `-60000`。不要只修改加载器自动生成的 SWRSToys.ini。
-4. 重新启动游戏，配合支持本协议的 Swarm UI 使用。
+SwarmMod.ini 位于 DLL 同目录：
 
-Swarm UI 的自动推送开关首次默认关闭，可记住设置并配置目标接口。作为主机通过 Swarm 中转进入实际对战后，由 UI 推送；客户端、观战、单机和录像不触发。连续再战沿用同一连接编号。建议关闭 SokuLobbies 自带的 `ReportToKonni`，避免重复注册。
+```ini
+[AutoPush]
+Enabled=0
+RelayAddress=
+Endpoint=https://konni.delthas.fr/games
+Session=
+```
 
-## 构建与测试
+Endpoint 可自行编辑，Swarm 保留此值。目标须兼容 Konni PUT JSON。其余字段由新版 Swarm 同步，请勿手动填写 Session。
 
-需要 Windows、Visual Studio 2022 的 C++ 桌面开发组件、Windows SDK、CMake，以及 Git。输出为 32 位 DLL。
+Swarm 启动时清空已定位目录的旧大厅和 Mod 地址。重建中转前、停止中转及正常退出时清空本实例同步的地址；关闭对应开关也会清空对应地址。开关偏好保留。
 
-在仓库根目录运行：
+Mod 推送前检查 Swarm 的进程会话；崩溃或强制退出后不使用残留 IP。只有 Mod 而无新版 Swarm 时不推送。未装大厅只禁用大厅开关；未装 SwarmMod 0.1.0 只禁用网页开关，不创建虚假模块目录。旧版不支持配置同步协议的 Mod 必须替换为此包中的 DLL 和 mod.json。
+
+Swarm 优先使用唯一运行中的游戏目录，其次自身游戏目录、已记住有效目录；找不到或多个候选时不猜选，可把 Swarm 放到目标目录。偏好保存在 %LOCALAPPDATA%/swarmmod/swarm-ui.ini 的 [Sync] 中。
+
+Mod 同目录 SwarmMod-result.ini 保存最近请求的 HTTP 状态及 Success。2xx 不保证网站收录或观战可达；已发出的请求无法通过开关撤回。
+
+## 构建和验证
+
+Mod 需要 Visual Studio 2022 C++、Windows SDK、CMake、SokuDev/SokuLib，运行 ./build.ps1 -SokuLibRoot C:/path/to/SokuLib。依赖提交 0794becf1f578b32329604483be2112fe0afd4ee。
+
+可自行获取依赖后构建：
 
 ```powershell
 git clone https://github.com/SokuDev/SokuLib.git deps/SokuLib
@@ -30,28 +45,21 @@ git -C deps/SokuLib checkout 0794becf1f578b32329604483be2112fe0afd4ee
 ./build.ps1
 ```
 
-也可指定已有依赖：`./build.ps1 -SokuLibRoot C:/path/to/SokuLib`。
+产物位于 `dist/modules/SwarmMod/`。构建脚本运行状态测试，并附带依赖许可。libcurl 和 mbedTLS 由 CMake 下载固定版本并校验 SHA-256。
 
-脚本编译 DLL、执行状态测试，并将安装文件写入 `dist/modules/SwarmMod/`。测试覆盖连接、连续再战、断线重连、角色切换和 JSON 转义。
+本地 HTTP 集成测试（两个终端）：
 
-## 本地协议
+```powershell
+# 终端 1
+python tests/http_server.py
 
-为兼容已有 Swarm UI，数据路径保留为 `%LOCALAPPDATA%/swarmmod/status.json`。每 500 ms 原子替换一次：
+# 终端 2
+cmake --build build --config Release --target swarmmod_http_tests
+./build/Release/swarmmod_http_tests.exe http://127.0.0.1:18349/games
+```
 
-| 字段 | 含义 |
-| --- | --- |
-| `protocol` | 协议版本，目前为 `1` |
-| `version` | Mod 版本 |
-| `pid`、`instance` | 游戏进程与本次运行标识 |
-| `heartbeat` | 递增心跳编号 |
-| `responsive` | 游戏回调是否仍在更新；十秒无更新则为 false |
-| `connection` | 对局连接编号，连续再战保持不变 |
-| `role` | `host`、`client`、`spectator`、`none` |
-| `phase` | `idle`、`select`、`loading`、`battle` |
-| `profile_name` | UTF-8 玩家档案名 |
+状态测试覆盖连接、再战、角色切换、地址校验、重试和去重；HTTP 测试覆盖 PUT、JSON 转义、Unicode、配置关闭及会话失效。游戏内兼容性和实际 Konni 观战仍需在目标环境验证。
 
-Mod 不改变游戏数据或 UDP 流量，场景钩子串联已有回调。适用于 SokuLib 支持的游戏版本；与其他 Mod 的兼容性及观战可达性仍需实际环境验证。目前面向单个运行中的游戏实例。
+当前版本在 SwarmMod.dll 的后台线程中直接使用静态链接的 libcurl 8.23.0 + mbedTLS 3.6.7 发送 HTTPS PUT，不再需要辅助 EXE。证书链及主机名校验保持开启，信任根取自 Windows 证书库；系统手动代理可自动读取。构建首次会下载并校验固定版本依赖。
 
-## 依赖
-
-使用 [SokuDev/SokuLib](https://github.com/SokuDev/SokuLib)，其 MIT 许可随安装文件一同提供，见 [SokuLib-LICENSE.txt](SokuLib-LICENSE.txt)。
+依赖许可随构建产物附带：SokuLib 为 MIT，libcurl 为 curl 许可，mbedTLS 使用 Apache-2.0 许可选项；完整许可见对应 `*-LICENSE.txt` 文件。

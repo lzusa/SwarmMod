@@ -1,1 +1,1 @@
-{"name":"SwarmMod","author":"Swarm","priority":"-60000","description":"Reports game state to Swarm UI for automatic match publishing","version":"0.1.0","main":"SwarmMod.dll","fileName":"SwarmMod.dll","configFiles":[]}
+{"name":"SwarmMod","author":"Swarm","priority":"-60000","description":"Publishes Swarm relay matches using local SwarmMod.ini","version":"0.1.0","relayProtocol":1,"main":"SwarmMod.dll","fileName":"SwarmMod.dll","configFiles":["SwarmMod.ini"]}
